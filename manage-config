@@ -19,6 +19,9 @@
 # Example:
 #   CONFIG_AD5064=y
 #
+# If the option is required on all architectures, add it to the common section;
+# if the option is only relevant to a specific architecture, add it to the
+# section of the corresponding architecture.
 
 # Configuration file to change
 ARCH=amd64
@@ -41,103 +44,68 @@ case "$ARCH" in
 esac
 CONFIG_FILE=${CONFIG_FILE_LOC}/.config
 
-# Add multi-architecture support
-#
-# To remove the option for specify architecture from the kernel,
-# add the arch tag such as [amd64] or [arm64] or [armhf] and options into the
-# flat text file patch/kconfig-exclusions.
-# if no tag appears, it is in effect for all architectures.
-#
-# Example:
-#   [amd64]CONFIG_SOUND
-#   [arm64]CONFIG_ISDN
-#   [armhf]CONFIG_ISDN
-#
-# To add the options for specify architecture into the kernel,
-# add the arch tag such as [amd64] or [arm64] or [armhf] options into the
-# flat text file patch/kconfig-inclusions.
-# if no tag appears, it is in effect for all architectures.
-#
-# Example:
-#   [amd64]CONFIG_AD5064=y
-
-function match_arch(){
-    opt=$1
-    assigned_arch=$(expr $opt : '.*\[\(.*\)\]')
-    if [ ! -z "$assigned_arch" ]; then
-         if [ ! "$assigned_arch" = "$ARCH" ]; then
-             return 1
-         else
-             opt=${opt#*]}
-         fi
-     fi
+function get_section_opts(){
+    file=$1
+    for((i=2;i<=$#;i++));do
+        eval section=\$$i
+        opts+=$(sed -n '/^\['${section}'\]/, /^\[.*\]/p' ${file} | grep -Ev '\[.*\]|^$|[#;]')
+        opts+=$'\n'
+    done
+    echo "$opts"
 }
 
 ret=0
-if [ -e ../patch/kconfig-exclusions -o -e ../patch/kconfig-inclusions ];
-then
+exclusion_file="../patch/kconfig-exclusions"
+inclusion_file="../patch/kconfig-inclusions"
+if [ -e ${exclusion_file} -o -e ${inclusion_file} ]; then
 
     # Process any exclusions in the kernel
-    if [ -f ../patch/kconfig-exclusions ]; then
+    if [ -f ${exclusion_file} ]; then
+        exclusion_opts=$(get_section_opts ${exclusion_file} "common" ${ARCH})
         while read -r opt; do
             if [ ! -z "$opt" ] && [[ ! "$opt" =~ ^#.* ]]; then
-                match_arch $opt
-                if [ $? = 1 ]; then
-                    continue
-                fi
                 scripts/config --file ${CONFIG_FILE} -d $opt
             fi
-        done < ../patch/kconfig-exclusions;
+        done <<< ${exclusion_opts};
     fi
 
     # Process any inclusions in the kernel
-    if [ -f ../patch/kconfig-inclusions ]; then
+    if [ -f ${inclusion_file} ]; then
+        inclusion_opts=$(get_section_opts ${inclusion_file} "common" ${ARCH})
         while read -r opt; do
             if [ ! -z "$opt" ] && [[ ! "$opt" =~ ^#.* ]]; then
-                match_arch $opt
-                if [ $? = 1 ]; then
-                    continue
-                fi
                 echo $opt >> ${CONFIG_FILE}
             fi
-        done < ../patch/kconfig-inclusions;
+        done <<< ${inclusion_opts};
     fi
 
     # Update the .config file to be sure it's consistent
     make -C ${CONFIG_FILE_LOC} olddefconfig
 
     # Verify that the kernel options we want to remove are not in the updated configuration
-    if [ -f ../patch/kconfig-exclusions ]; then
+    if [ -f ${exclusion_file} ]; then
         echo
         echo "Checking removed kernel options..."
         while read -r opt; do
             if [ ! -z "$opt" ] && [[ ! "$opt" =~ ^#.* ]]; then
-                match_arch $opt
-                if [ $? = 1 ]; then
-                    continue
-                fi
                 s=$(scripts/config --file ${CONFIG_FILE} -k --state $opt)
                 if [ ! "$s" = "undef" -a ! "$s" = "n" ]; then
                     ret=1
                     echo "Option $opt should not be set, but is set to [$s]"
                 fi
             fi
-        done < ../patch/kconfig-exclusions;
+        done <<< ${exclusion_opts};
         if [ $ret = 0 ]; then
             echo "No error"
         fi
     fi
 
     # Verify that the kernel options we want to add are now in the updated configuration
-    if [ -f ../patch/kconfig-inclusions ]; then
+    if [ -f ${inclusion_file} ]; then
         echo
         echo "Checking added kernel options..."
         while read -r opt; do
             if [ ! -z "$opt" ] && [[ ! "$opt" =~ ^#.* ]]; then
-                match_arch $opt
-                if [ $? = 1 ]; then
-                    continue
-                fi
                 n=${opt%=*}
                 v="${opt#*=}"
                 s=$(scripts/config --file ${CONFIG_FILE} -k --state $n)
@@ -146,7 +114,7 @@ then
                     echo "Option $n should be set to [$v] instead of [$s]"
                 fi
             fi
-        done < ../patch/kconfig-inclusions;
+        done <<< ${inclusion_opts};
         if [ ! $ret = 2 ]; then
             echo "No error"
         fi
