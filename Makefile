@@ -48,9 +48,9 @@ ORIG_FILE = linux_$(KERNEL_VERSION).orig.tar.xz
 DEBIAN_FILE = linux_$(KERNEL_VERSION)-$(KERNEL_SUBVERSION).debian.tar.xz
 BUILD_DIR=linux-$(KERNEL_VERSION)
 
-DSC_FILE_URL = "http://security.debian.org/debian-security/pool/updates/main/l/linux/linux_4.19.67-2+deb10u2.dsc"
-DEBIAN_FILE_URL = "http://security.debian.org/debian-security/pool/updates/main/l/linux/linux_4.19.67-2+deb10u2.debian.tar.xz"
-ORIG_FILE_URL = "http://security.debian.org/debian-security/pool/updates/main/l/linux/linux_4.19.67.orig.tar.xz"
+DSC_FILE_URL = "http://mirrors.tuna.tsinghua.edu.cn/debian-security/pool/updates/main/l/linux/linux_4.19.67-2+deb10u2.dsc"
+DEBIAN_FILE_URL = "http://mirrors.tuna.tsinghua.edu.cn/debian-security/pool/updates/main/l/linux/linux_4.19.67-2+deb10u2.debian.tar.xz"
+ORIG_FILE_URL = "http://mirrors.tuna.tsinghua.edu.cn/debian-security/pool/updates/main/l/linux/linux_4.19.67.orig.tar.xz"
 
 $(addprefix $(DEST)/, $(MAIN_TARGET)): $(DEST)/% :
 	# Obtaining the Debian kernel source
